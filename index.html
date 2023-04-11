@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>音声入力の波形と周波数表示</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>音声入力の波形と周波数表示</h1>
+  <canvas id="waveform"></canvas>
+  <canvas id="frequency"></canvas>
+  <script>
+    const waveformCanvas = document.getElementById("waveform");
+    const waveformCtx = waveformCanvas.getContext("2d");
+    waveformCanvas.width = window.innerWidth;
+    waveformCanvas.height = window.innerHeight / 2;
+
+    const frequencyCanvas = document.getElementById("frequency");
+    const frequencyCtx = frequencyCanvas.getContext("2d");
+    frequencyCanvas.width = window.innerWidth;
+    frequencyCanvas.height = window.innerHeight / 2;
+
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(stream => {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        const bufferLength = analyser.frequencyBinCount;
+        const timeDomainData = new Uint8Array(bufferLength);
+        const frequencyData = new Uint8Array(bufferLength);
+
+        source.connect(analyser);
+
+        function drawWaveform() {
+          requestAnimationFrame(drawWaveform);
+          analyser.getByteTimeDomainData(timeDomainData);
+
+          waveformCtx.fillStyle = "rgba(255, 255, 255, 0.5)";
+          waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+
+          waveformCtx.lineWidth = 2;
+          waveformCtx.strokeStyle = "rgb(0, 0, 0)";
+
+          waveformCtx.beginPath();
+
+          const sliceWidth = waveformCanvas.width / bufferLength;
+          let x = 0;
+
+          for (let i = 0; i < bufferLength; i++) {
+            const v = timeDomainData[i] / 128.0;
+            const y = v * waveformCanvas.height / 2;
+
+            if (i === 0) {
+              waveformCtx.moveTo(x, y);
+            } else {
+              waveformCtx.lineTo(x, y);
+            }
+
+            x += sliceWidth;
+          }
+
+          waveformCtx.lineTo(waveformCanvas.width, waveformCanvas.height / 2);
+          waveformCtx.stroke();
+        }
+
+        function drawFrequency() {
+          requestAnimationFrame(drawFrequency);
+          analyser.getByteFrequencyData(frequencyData);
+
+          frequencyCtx.fillStyle = "rgba(255, 255, 255, 0.5)";
+          frequencyCtx.fillRect(0, 0, frequencyCanvas.width, frequencyCanvas.height);
+
+          const barWidth = (frequencyCanvas.width / bufferLength) * 2.5;
+          let barHeight;
+          let x = 0;
+
+          for (let i = 0; i < bufferLength; i++) {
+            barHeight = frequencyData[i];
+
+            frequencyCtx.fillStyle = "rgb(0, 0, 0)";
+            frequencyCtx.fillRect(x, frequencyCanvas.height - barHeight / 2, barWidth, barHeight / 2);
+            x += barWidth + 1;
+          }
+        }
+
+        drawWaveform();
+        drawFrequency();
+      })
+      .catch(err => {
+        console.error("Error accessing audio stream: ", err);
+      });
+  </script>
+</body>
+</html>
